@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editors and OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Data (competition datasets must not be published)
+data/
+*.csv
+*.pkl
+*.h5
+
+# Python
+__pycache__/
+.venv/
+.ipynb_checkpoints/
+
+# Local storage
+minio-data/
+pgdata/
