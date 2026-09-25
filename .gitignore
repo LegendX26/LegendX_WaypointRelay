@@ -26,9 +26,10 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Data (competition datasets must not be published)
-data/
+# Raw competition data (only the seed subset is committed)
+/data/
 *.csv
+!seed/**/*.csv
 *.pkl
 *.h5
 
