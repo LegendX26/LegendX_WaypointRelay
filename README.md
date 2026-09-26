@@ -78,7 +78,7 @@ See [docs/design-deviations.md](docs/design-deviations.md).
 
 ## Contributing
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before your first commit.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before your first commit. Coding agents follow [AGENTS.md](AGENTS.md).
 
 ## Team LegendX
 
