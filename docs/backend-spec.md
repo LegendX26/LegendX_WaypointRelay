@@ -305,7 +305,34 @@ Put these in a small seeded lookup table, not in code.
 - **Consequences before applying:** return the change in served count, deferred count, chilled m³ served, the vehicle's trip minutes and the number of violations (design: 93.7 → 101.5 m³, 13 → 12 deferred, 0 violations).
 - **Publish:** trips, stops, deferrals, order status changes and events are saved in **one transaction**. Publishing is refused if the validator finds any violation.
 
-### 3.8 Order lifecycle
+### 3.8 Dispatcher suggestions: rule-based symbolic AI
+The dispatcher's suggestions come from a small **expert system** (symbolic AI): rules plus inference, with an explanation for every suggestion. No machine learning, no LLM, no external service; it runs on our server and gives the same answer for the same plan.
+
+| Part | In our system |
+|---|---|
+| Knowledge base | Production rules stored as data in `packages/engine/rules`: `id`, `when` (condition on facts), `then` (action), `priority`, `explain` (text template) |
+| Working memory (facts) | The draft plan: trips, stops, deferred orders, skip counts (3.5), vehicle limits, windows, ETAs (3.4) |
+| Inference engine | Forward chaining: run the rules, add new facts (candidates) until nothing changes. Conflicts are settled by `priority`, then by score |
+| Safety check | Every candidate must pass the shared validator (3.2); a candidate that breaks a rule is dropped |
+| Explanation | The fired rules become the "why" text on the deferred-order sheet |
+
+**Rules for the screens in the design:**
+| Rule | When | Then | Shown in the design |
+|---|---|---|---|
+| R1 | A chilled order is deferred and its outlet has ≥ 3 chilled skips in 30 days | Look for a reefer-trip swap in the same depot | Deferred-order sheet |
+| R2 | A candidate breaks any of the 7 rules | Drop it | (not shown) |
+| R3 | A swap serves outlets with more skips than the outlets it defers | Prefer it; mark the best one **"Suggested"** | "Suggested" badge + consequences |
+| R4 | An order is larger than any available vehicle | "Split the order or send it next run" | Deferred list |
+| R5 | A van-only outlet and every van is full | "Van-only; both vans are full" → next run | Deferred list |
+| R6 | Expected arrival is after the window close | Mark the trip **at risk** | Plan published, Live |
+
+Example explanation: *"OUT008 chilled was deferred 5 times in 30 days; OUT066 and OUT067 had 0. The swap passes all 7 rules and serves 1 more order (+7.8 m³)."*
+
+- Write the engine ourselves (about one file) so the team can explain every line; `json-rules-engine` is an acceptable alternative.
+- Unit-test every rule, plus one golden test on S1: the engine must suggest the VEH006 Trip 1 swap for OUT008.
+- Suggestions only appear where the design shows them. A new suggestion anywhere else is a design departure; write it in `docs/design-deviations.md`.
+
+### 3.9 Order lifecycle
 ```
 Placed → Confirmed (16:00) → Planned | Deferred (reason) → Loaded → OnTheWay → Delivered → Received
 Deferred → Confirmed (next run)          Delivered → Disputed → Received (resolved with evidence)

@@ -85,6 +85,7 @@ The app asks the API for a presigned URL, uploads the photo straight to MinIO, t
 | **PostgreSQL, not a document DB** | The data is relational (depot → district → outlet → order → stop → trip → vehicle) and needs foreign keys, checks and transactions |
 | **One shared validator** | The same rules run in the browser and on the server; no rules in SQL triggers, so they can't drift apart |
 | **HiGHS with a greedy fallback** | An optimiser finds a good plan in seconds; the greedy plan guarantees an answer if the optimiser fails |
+| **Rule-based symbolic AI for dispatcher suggestions** | An expert system (rules + forward-chaining inference) suggests swaps and next steps and explains why. It is deterministic, runs on our server, and every suggestion passes the shared validator. ETA and late risk come from the 1.34× travel rule, or from our own Datathon models if they are integrated; no LLM is used |
 | **SSE, not WebSockets** | Updates only flow from server to clients |
 | **No Redis or job queue** | One API instance; scheduled jobs use `@nestjs/schedule`, events use the in-process event emitter |
 | **MinIO behind a storage interface** | Same API as S3; can be swapped for a Docker volume or AWS S3 with a config change |
