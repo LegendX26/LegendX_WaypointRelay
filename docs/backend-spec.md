@@ -408,7 +408,57 @@ Design: *driver offline on the Kandy corridor* (Figma page 03). This is 10% of t
 
 ---
 
-## 7. Seed data (`docker compose up` on a fresh install must work)
+## 7. Database and infrastructure practices
+
+### 7.1 Transactions (all or nothing)
+| Operation | Why |
+|---|---|
+| Publish plan | Trips, stops, deferrals, order statuses and events are saved together |
+| Offline sync batch | No half-saved batch |
+| Defer + status change + event | The deferral, the order status and the store's notification always match |
+
+Keep every transaction short: never wait for user input or a file upload inside one.
+
+### 7.2 Concurrency
+- **Idempotent sync:** `INSERT … ON CONFLICT (client_uuid) DO NOTHING` (Section 5).
+- **Optimistic locking:** ORDER, TRIP and STOP have a `version` column. Update with `WHERE id = ? AND version = ?`; 0 rows updated means someone else changed it, so return a conflict instead of overwriting.
+- **No pessimistic locking:** avoid `SELECT … FOR UPDATE`; it raises the deadlock risk.
+
+### 7.3 Deadlocks
+- PostgreSQL detects a deadlock by itself and cancels one transaction (error `40P01`, Prisma `P2034`). The system does not freeze.
+- Risk is low: each driver writes only their own stops, and planning (evening) and driver syncs (early morning) happen at different times.
+- Rules: short transactions · always lock in the order ORDER → STOP → DELIVERY (sort rows by id when updating many) · retry `P2034` up to 3 times with a short back-off (safe, because sync is idempotent).
+
+### 7.4 No logic in the database
+- No triggers, stored procedures or DB functions. The rules live in the shared TypeScript validator, which also runs in the browser; SQL copies would drift and are harder to test.
+- `updated_at` uses Prisma's `@updatedAt`, not a trigger.
+- The database still refuses bad data through foreign keys, `UNIQUE` and `CHECK` constraints (Section 2.7).
+
+### 7.5 No database dump
+No document asks for a backup or dump file. `prisma migrate deploy` creates the tables and an **idempotent seed script** loads the data on `docker compose up` (Section 8). Running `up` twice must not duplicate anything.
+
+### 7.6 Docker Compose
+- `db`: `postgres:16-alpine`, with a `pg_isready` healthcheck; the API uses `depends_on: db: condition: service_healthy`, so it never starts before the database (the judges' first run would crash).
+- `api` start command: `prisma migrate deploy` → seed → server.
+- Passwords live in `.env` (not committed); `.env.example` is committed.
+- The **same compose file** runs on the VM, so local and production match.
+
+### 7.7 MinIO (photos and signatures)
+- **Create the bucket automatically** with a one-shot `minio-init` container (`mc mb --ignore-existing local/pod-photos`), or the first upload fails on a fresh install.
+- **Pin the MinIO image version** (no `latest`), and check that it still pulls before relying on it.
+- Configure **CORS**, because the browser uploads directly with presigned URLs.
+- Photos are compressed on the phone (about 200 KB). Offline photos wait in IndexedDB and upload on sync.
+- Everything goes through `StorageService.upload()`, so switching to a Docker volume is a one-file change.
+
+### 7.8 No Redis or job queue
+One API instance: scheduled jobs (16:00 cutoff, weekly fuel reset) use `@nestjs/schedule`, live events use the in-process event emitter, and PostgreSQL is fast enough without a cache. If a background queue is ever needed, use **pg-boss** (a queue inside PostgreSQL, no new container).
+
+### 7.9 For semi-final Q&A: concurrency theory
+We rely on PostgreSQL's **MVCC** (readers don't block writers) and its **built-in deadlock detection**, so we don't implement timestamp ordering, wait-die or wound-wait. At the application level, the `version` column is **optimistic concurrency control**, the fixed lock order is **deadlock prevention**, and the retry is **deadlock recovery**. Offline sync is idempotent, so retries never create duplicates.
+
+---
+
+## 8. Seed data (`docker compose up` on a fresh install must work)
 
 Order: `prisma migrate deploy` → idempotent seed (skip if data exists) → start the API.
 
@@ -435,7 +485,7 @@ The S1 plan date is the next operating day after the last history day in the dat
 
 ---
 
-## 8. Open questions (decide in the first team call)
+## 9. Open questions (decide in the first team call)
 
 1. **(+) fields and ORDER_EVENT** (Section 2): agree them with Kulasekara, then update the Excalidraw ER and `docs/data-model.md`.
 2. **Skip history needs past deliveries.** Seeding it means committing a small derived summary (120 outlets × 2 temps). Booklet p.22 forbids publishing the datasets *"or any derivatives"*. Options: keep the repo private and share it with the judges, or ask tech-triathlon@rootcode.io first.
@@ -445,7 +495,7 @@ The S1 plan date is the next operating day after the last history day in the dat
 
 ---
 
-## 9. Build order (start now, finish by 3 Oct; 4 Oct is buffer and submission)
+## 10. Build order (start now, finish by 3 Oct; 4 Oct is buffer and submission)
 
 | Step | Backend work |
 |---|---|

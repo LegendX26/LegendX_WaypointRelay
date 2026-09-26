@@ -257,6 +257,10 @@ Routing rules (capacity, reefer, van-only, one brand and district per trip, time
 - **Idempotent sync:** every driver record carries a `client_uuid` made on the phone; the server inserts with `ON CONFLICT (client_uuid) DO NOTHING`.
 - **Two times:** `delivered_at` is the time on the phone, `synced_at` is when the server received it.
 - **Optimistic locking:** ORDER, TRIP and STOP have a `version` column. A driver's offline record that meets a plan change is kept (what happened on the ground wins) and raises a `sync_conflict` issue for the dispatcher.
+- **Transactions:** publishing a plan, an offline sync batch, and a deferral with its status change and event are each all-or-nothing.
+- **Deadlocks:** PostgreSQL detects them and cancels one transaction; we keep transactions short, always lock ORDER → STOP → DELIVERY, avoid `SELECT … FOR UPDATE`, and retry up to 3 times.
+- **Concurrency model:** PostgreSQL MVCC and built-in deadlock detection; no timestamp ordering, wait-die or wound-wait of our own. The `version` column is optimistic concurrency control.
+- **No logic in the database:** no triggers or stored procedures; `updated_at` uses Prisma's `@updatedAt`.
 
 ## Not modelled, and why
 
