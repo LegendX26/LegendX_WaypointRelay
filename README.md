@@ -73,6 +73,7 @@ See [docs/design-deviations.md](docs/design-deviations.md).
 
 - [Architecture](docs/architecture.md)
 - [Data model](docs/data-model.md)
+- [Backend spec](docs/backend-spec.md)
 - [AI disclosure](docs/ai-disclosure.md)
 
 ## Contributing
